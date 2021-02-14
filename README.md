@@ -17,3 +17,13 @@ DB_NAME=<YOUR_DB_NAME>
 ```SQL
 GRANT ALL PRIVILEGES ON *.* TO `<YOUR_DB_USERNAME>`@`<YOUR_DB_HOST>`;
 ```
+
+
+## Testing
+
+There are unittests to cover basic logic of projects. To execute them, call next command (under venv):
+```Bash
+python -m unittest tests/test_main.py 
+```
+
+They mock a Flask application and check different use cases of both endpoints (+ their integration with DB).

@@ -34,7 +34,7 @@ def create_db_connection() -> engine.Engine:
     # Initial create of table (if needed)
     if not engine.dialect.has_table(engine, TABLE_NAME):
         meta = MetaData()
-        table = Table(
+        _ = Table(
             TABLE_NAME,
             meta,
             Column("id", Integer, primary_key=True),
