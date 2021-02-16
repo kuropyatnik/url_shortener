@@ -5,7 +5,6 @@ import json
 import main
 
 
-
 @ddt.ddt
 class TestMain(unittest.TestCase):
 
@@ -64,7 +63,7 @@ class TestMain(unittest.TestCase):
                 "url": "https://www.google.com.ua/",
                 "lifeterm": 156
             },
-            "HELLO, GUY FROM POST",
+            "URL was shorted!",
             201
         )
     )
@@ -76,13 +75,13 @@ class TestMain(unittest.TestCase):
         with main.app.test_client() as _app:
             if req_body is None:
                 response = _app.post(
-                    '/create',
+                    '/create_url',
                     data=req_body, 
                     content_type='text/html'
                 )
             else:
                 response = _app.post(
-                    '/create', 
+                    '/create_url', 
                     data=json.dumps(req_body),
                     content_type='application/json'
                 )

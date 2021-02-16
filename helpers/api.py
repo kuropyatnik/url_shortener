@@ -1,6 +1,9 @@
 from functools import wraps
 from flask import Response, request, make_response
 import re
+from datetime import datetime, timedelta
+import hashlib
+
 from .exceptions import RequestFieldException
 
 
@@ -11,7 +14,8 @@ url_regex = re.compile(r'^(?:http|ftp)s?://' # http:// or https://
         r'(?::\d+)?' # optional port
         r'(?:/?|[/?]\S+)$', re.IGNORECASE)
 
-def create_fields_validation(f):
+
+def validate_fields(f):
     """
     Decorator to validate `/create` request POST fields
 
@@ -42,3 +46,18 @@ def create_fields_validation(f):
                 raise RequestFieldException("Lifeterm has to be in range [1, 365] days!")
         return f(*args, **kwargs)
     return decorated_function
+
+
+def encrypt_url(long_url: str, ts: datetime.timestamp) -> str:
+    """
+    Uses md5 to encrypt combination of long url and request timestamp
+    """
+    encoded_data = str.encode(long_url + str(ts), "utf-8")
+    return hashlib.md5(encoded_data).hexdigest()
+
+
+def process_expiration_date(current_ts: datetime.timestamp, days: int) -> datetime:
+    """
+    Create expiration date by adding days number to current date
+    """
+    return datetime.fromtimestamp(current_ts) + timedelta(days)

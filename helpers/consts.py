@@ -8,3 +8,4 @@ DB_PASSWD = os.getenv("DB_PASSWD")
 DB_NAME = os.getenv("DB_NAME")
 
 TABLE_NAME = "links"
+MAX_RECORDS = 2

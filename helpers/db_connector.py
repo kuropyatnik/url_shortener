@@ -9,6 +9,8 @@ from sqlalchemy import (
     DateTime
 ) 
 from sqlalchemy_utils import create_database, database_exists
+from typing import Tuple
+
 from .consts import (
     DB_HOST,
     DB_NAME,
@@ -18,7 +20,7 @@ from .consts import (
 )
 
 
-def create_db_connection() -> engine.Engine:
+def create_db_connection() -> Tuple[engine.Engine, Table]:
     """
     Creates DB connection via pymysql dialect.
     Also, ensures that expected DB exists, 
@@ -31,10 +33,10 @@ def create_db_connection() -> engine.Engine:
     if not database_exists(engine.url):
         create_database(engine.url)
     
+    meta = MetaData(engine)
     # Initial create of table (if needed)
     if not engine.dialect.has_table(engine, TABLE_NAME):
-        meta = MetaData()
-        _ = Table(
+        table = Table(
             TABLE_NAME,
             meta,
             Column("id", Integer, primary_key=True),
@@ -43,5 +45,7 @@ def create_db_connection() -> engine.Engine:
             Column("valid_to", DateTime)
         )
         meta.create_all(engine)
-
-    return engine
+    else:
+        meta.reflect(only=[TABLE_NAME])
+        table = meta.tables[TABLE_NAME]
+    return engine, table
