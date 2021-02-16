@@ -23,7 +23,7 @@ def hello_world():
 @app.route('/create', methods=['POST'])
 @create_fields_validation
 def create_short_link():
-    return "HELLO, GUY FROM POST"
+    return "HELLO, GUY FROM POST", 201
 
 
 @app.errorhandler(InternalServerError)
