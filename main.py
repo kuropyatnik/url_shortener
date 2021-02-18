@@ -6,17 +6,28 @@ from flask import (
     Flask,
     request,
     jsonify,
+    redirect
 )
 from werkzeug.exceptions import InternalServerError
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func
+from functools import wraps
 
 from helpers.db_connector import create_db_connection
-from helpers.api import validate_fields, encrypt_url, process_expiration_date
+from helpers.api import (
+    validate_fields,
+    encrypt_url,
+    process_expiration_date, 
+    cleanup
+)
 from helpers.exceptions import RequestFieldException
 from helpers.consts import MAX_RECORDS
 
+
 app = Flask(__name__)
 db, table = create_db_connection()
+
+
 
 INTERNAL_ERROR = {'status': 'error', 'msg': 'Internal server error'}
 HASH_WAS_NOT_FOUND_ERROR = {
@@ -26,29 +37,43 @@ HASH_WAS_NOT_FOUND_ERROR = {
             'again, this error should be disappear.'
 }
 
-@app.route('/')
-def hello_world():
-    return f'Your db url is {db.url}'
+
+@app.route('/<short_url>')
+@cleanup(db, table)
+def redirect_to_short_url(short_url):
+    with db.connect() as conn:
+        # Try to find this short url in DB
+        res = conn.execute(
+            table.select().where(table.c.short_url == short_url)
+        )
+        if res.rowcount > 0:
+            return redirect(res.first().real_url, code=302)
+        else:
+            return jsonify(
+                {
+                    "status": "error",
+                    "msg": "There is no such short URL!"
+                }
+            ), 404
+
 
 @app.route('/create_url', methods=['POST'])
 @validate_fields
+@cleanup(db, table)
 def create_short_link():
     """
+    Checks that such real url exists in DB, and also controls max count
     Makes a new short key from long url and timestamp
     Tries to insert new data to the DB
     """
     ts = time.time()
     with db.connect() as conn:
-        # Cleanup from all old records
-        conn.execute(
-            table.delete().where(table.c.valid_to < datetime.fromtimestamp(ts))
-        )
-
         # Try to find already existing real url in DB
         res = conn.execute(
             table.select().where(table.c.real_url == request.json["url"])
         )
         if res.rowcount > 0:
+            # There can be only one row, since URLs are unique
             full_short_url = os.path.join(
                 request.url_root, res.first().short_url)
             return jsonify(
@@ -60,7 +85,7 @@ def create_short_link():
         
         # Count all records in the DB
         res = conn.execute(
-            table.select()
+            func.count(table.c.id)
         )
         if res.rowcount >= MAX_RECORDS:
             return jsonify(
@@ -69,7 +94,6 @@ def create_short_link():
                     "msg": f"There is maximum amount of possible records!"
                 }
             ), 409
-
 
         res_encr = encrypt_url(request.json["url"], ts)
         valid_to = process_expiration_date(ts, request.json.get("lifeterm", 90))

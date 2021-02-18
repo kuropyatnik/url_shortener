@@ -3,16 +3,35 @@ import ddt
 import json
 
 import main
-
+from helpers.db_connector import create_test_table
 
 @ddt.ddt
 class TestMain(unittest.TestCase):
+
+    test_table = None
+    real_table = main.table
+
+    @classmethod
+    def setUpClass(cls):
+        """
+        Prepares test table, and replaces real table on it during testing
+        """
+        cls.test_table = create_test_table(main.db, main.table)
+        main.table = cls.test_table
+
+    @classmethod
+    def tearDownClass(cls):
+        """
+        Resets real table and removes testing table at all
+        """
+        main.table = cls.real_table
+        cls.test_table.drop(main.db)
 
     def setUp(self):
         pass
 
     def tearDown(self):
-        pass
+        main.table.delete()
     
     @ddt.data(
         (

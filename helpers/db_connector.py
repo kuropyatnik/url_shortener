@@ -10,6 +10,7 @@ from sqlalchemy import (
 ) 
 from sqlalchemy_utils import create_database, database_exists
 from typing import Tuple
+from random import randint
 
 from .consts import (
     DB_HOST,
@@ -48,4 +49,18 @@ def create_db_connection() -> Tuple[engine.Engine, Table]:
     else:
         meta.reflect(only=[TABLE_NAME])
         table = meta.tables[TABLE_NAME]
+
     return engine, table
+
+
+def create_test_table(engine: engine.Engine, real_table: Table) -> Table:
+    """
+    Creates a testing table with a real table schema
+    """
+    meta = MetaData(engine)
+    # Test copy of main table schema
+    new_table = Table("test" + str(randint(1, 50)), meta)
+    for column in real_table.columns:
+        new_table.append_column(column.copy())
+    meta.create_all(engine)
+    return new_table

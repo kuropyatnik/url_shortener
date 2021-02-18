@@ -1,8 +1,10 @@
+import re
+import hashlib
+import sqlalchemy
+import time
 from functools import wraps
 from flask import Response, request, make_response
-import re
 from datetime import datetime, timedelta
-import hashlib
 
 from .exceptions import RequestFieldException
 
@@ -46,6 +48,26 @@ def validate_fields(f):
                 raise RequestFieldException("Lifeterm has to be in range [1, 365] days!")
         return f(*args, **kwargs)
     return decorated_function
+
+
+def cleanup(db: sqlalchemy.engine.Engine, table: sqlalchemy.Table):
+    """
+    Decorator to clean expired links from DB
+    It uses parameters with DB connection and Table instance, so
+    there is a wrap of wrapped function
+    """
+    def inner_wrap(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            ts = time.time()
+            with db.connect() as conn:
+                # Cleanup from all old records
+                conn.execute(
+                    table.delete().where(table.c.valid_to < datetime.fromtimestamp(ts))
+                )
+            return f(*args, **kwargs)
+        return decorated_function
+    return inner_wrap
 
 
 def encrypt_url(long_url: str, ts: datetime.timestamp) -> str:
