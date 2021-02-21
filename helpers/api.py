@@ -50,24 +50,24 @@ def validate_fields(f):
     return decorated_function
 
 
-def cleanup(db: sqlalchemy.engine.Engine, table: sqlalchemy.Table):
+def cleanup(f):
     """
     Decorator to clean expired links from DB
     It uses parameters with DB connection and Table instance, so
     there is a wrap of wrapped function
     """
-    def inner_wrap(f):
-        @wraps(f)
-        def decorated_function(*args, **kwargs):
-            ts = time.time()
-            with db.connect() as conn:
-                # Cleanup from all old records
-                conn.execute(
-                    table.delete().where(table.c.valid_to < datetime.fromtimestamp(ts))
-                )
-            return f(*args, **kwargs)
-        return decorated_function
-    return inner_wrap
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        ts = time.time()
+        # Import engine and current main table to use
+        from main import db, table
+        with db.connect() as conn:
+            # Cleanup from all old records
+            conn.execute(table.delete().where(
+                table.c.valid_to < datetime.fromtimestamp(ts))
+            )
+        return f(*args, **kwargs)
+    return decorated_function
 
 
 def encrypt_url(long_url: str, ts: datetime.timestamp) -> str:

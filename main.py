@@ -28,7 +28,6 @@ app = Flask(__name__)
 db, table = create_db_connection()
 
 
-
 INTERNAL_ERROR = {'status': 'error', 'msg': 'Internal server error'}
 HASH_WAS_NOT_FOUND_ERROR = {
     'status': 'error',
@@ -39,7 +38,7 @@ HASH_WAS_NOT_FOUND_ERROR = {
 
 
 @app.route('/<short_url>')
-@cleanup(db, table)
+@cleanup
 def redirect_to_short_url(short_url):
     with db.connect() as conn:
         # Try to find this short url in DB
@@ -59,7 +58,7 @@ def redirect_to_short_url(short_url):
 
 @app.route('/create_url', methods=['POST'])
 @validate_fields
-@cleanup(db, table)
+@cleanup
 def create_short_link():
     """
     Checks that such real url exists in DB, and also controls max count

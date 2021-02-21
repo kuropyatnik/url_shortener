@@ -58,9 +58,7 @@ def create_test_table(engine: engine.Engine, real_table: Table) -> Table:
     Creates a testing table with a real table schema
     """
     meta = MetaData(engine)
+    new_table = real_table.tometadata(meta, name="test" + str(randint(1, 50)))
     # Test copy of main table schema
-    new_table = Table("test" + str(randint(1, 50)), meta)
-    for column in real_table.columns:
-        new_table.append_column(column.copy())
     meta.create_all(engine)
     return new_table
