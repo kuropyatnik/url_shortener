@@ -23,6 +23,7 @@ from helpers.api import (
     is_max_rowscount
 )
 from helpers.exceptions import RequestFieldException
+from helpers.consts import HOURS
 
 INTERNAL_ERROR = {'status': 'error', 'msg': 'Internal server error'}
 HASH_WAS_NOT_FOUND_ERROR = {
@@ -37,7 +38,7 @@ app = Flask(__name__)
 db, table = create_db_connection()
 # Set a scheduled task for cleanup every 24 hours
 scheduler = BackgroundScheduler()
-scheduler.add_job(func=cleanup, trigger="interval", args=(db, table), hours=24)
+scheduler.add_job(func=cleanup, trigger="interval", args=(db, table), hours=HOURS)
 scheduler.start()
 
 
@@ -56,7 +57,8 @@ def redirect_to_short_url(short_url):
                     "msg": "There is no such short URL!"
                 }
             ), 404
-        elif res.first().valid_to < curr_dt:
+        found_record = res.first()
+        if found_record.valid_to < curr_dt:
             return jsonify(
                 {
                     "status": "error",
@@ -64,7 +66,7 @@ def redirect_to_short_url(short_url):
                 }
             ), 404
         else:
-            return redirect(res.first().real_url, code=302)
+            return redirect(found_record.real_url, code=302)
 
 
 @app.route('/create_url', methods=['POST'])
@@ -92,7 +94,7 @@ def create_short_link():
                 }
             ), 200
         
-        if is_max_rowscount(db, table) or is_max_rowscount(db, table, pre_cleanup=True):
+        if is_max_rowscount(db, table) and is_max_rowscount(db, table, pre_cleanup=True):
             return jsonify(
                 {
                     "status": "error",
@@ -136,6 +138,7 @@ def handle_internal_error(error):
 @app.errorhandler(RequestFieldException)
 def handle_request_fields_error(error):
     return jsonify({"status": "error", "msg": error.message}), 400
+
 
 if __name__ == "__main__":
     app.run(use_reloader=False)

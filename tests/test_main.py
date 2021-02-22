@@ -141,6 +141,9 @@ class TestMain(unittest.TestCase):
                 )
                 self.assertEqual(201, response.status_code)
 
+        # Test cleanup method
+        api.cleanup(main.db, main.table)
+
         # Check in DB, that everything was set correctly
         with main.db.connect() as conn:  
             # There is no old expired link

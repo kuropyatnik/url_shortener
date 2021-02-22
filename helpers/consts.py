@@ -9,3 +9,4 @@ DB_NAME = os.getenv("DB_NAME")
 
 TABLE_NAME = "links"
 MAX_RECORDS = 1000000
+HOURS = 24
