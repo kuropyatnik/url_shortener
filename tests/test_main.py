@@ -9,7 +9,7 @@ from collections import namedtuple
 
 import main
 from helpers.db_connector import create_test_table
-from helpers.consts import MAX_RECORDS
+from helpers import api
 from tests.data.sample import TABLE_DATA
 
 
@@ -153,13 +153,30 @@ class TestMain(unittest.TestCase):
                 main.table.select().where(main.table.c.short_url == "aaaabc"))
             self.assertEqual(res_with_shifted_link.rowcount, 1)
     
-    def test_links_limit(self):
+    @ddt.data(
+        (True, 0, 409),
+        (False, 3, 201)
+    )
+    @ddt.unpack
+    def test_links_limit(self, is_db_empty, _max_records, _status_code):
         """
         Ensures, that application won't add a record, if there will
         be exceeded limit of records
+        
+        1.  Ensures, that it won't write anything in DB with max limit,
+            and without outdated records
+        2.  Rechecks not empty DB, find outdated records and rewrite new one
         """
+        if not is_db_empty:
+            with main.db.connect() as conn:
+                # Paste sampling data
+                conn.execute(
+                    main.table.insert(),
+                    TABLE_DATA
+                )
+
         # Patch MAX_RECORDS count
-        with mock.patch.object(main, "MAX_RECORDS", 0):
+        with mock.patch.object(api, "MAX_RECORDS", _max_records):
             # Sends creation request
             with main.app.test_client() as _app:
                 response = _app.post(
@@ -169,4 +186,4 @@ class TestMain(unittest.TestCase):
                     }),
                     content_type='application/json'
                 )
-                self.assertEqual(409, response.status_code)
+                self.assertEqual(_status_code, response.status_code)

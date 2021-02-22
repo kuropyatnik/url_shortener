@@ -1,6 +1,7 @@
 import json
 import time
 import os
+import atexit
 from datetime import datetime
 from flask import (
     Flask,
@@ -10,23 +11,18 @@ from flask import (
 )
 from werkzeug.exceptions import InternalServerError
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import func
 from functools import wraps
+from apscheduler.schedulers.background import BackgroundScheduler
 
 from helpers.db_connector import create_db_connection
 from helpers.api import (
     validate_fields,
     encrypt_url,
-    process_expiration_date, 
-    cleanup
+    process_expiration_date,
+    cleanup,
+    is_max_rowscount
 )
 from helpers.exceptions import RequestFieldException
-from helpers.consts import MAX_RECORDS
-
-
-app = Flask(__name__)
-db, table = create_db_connection()
-
 
 INTERNAL_ERROR = {'status': 'error', 'msg': 'Internal server error'}
 HASH_WAS_NOT_FOUND_ERROR = {
@@ -37,28 +33,42 @@ HASH_WAS_NOT_FOUND_ERROR = {
 }
 
 
+app = Flask(__name__)
+db, table = create_db_connection()
+# Set a scheduled task for cleanup every 24 hours
+scheduler = BackgroundScheduler()
+scheduler.add_job(func=cleanup, trigger="interval", args=(db, table), hours=24)
+scheduler.start()
+
+
 @app.route('/<short_url>')
-@cleanup
 def redirect_to_short_url(short_url):
     with db.connect() as conn:
+        curr_dt = datetime.fromtimestamp(time.time())
         # Try to find this short url in DB
         res = conn.execute(
             table.select().where(table.c.short_url == short_url)
         )
-        if res.rowcount > 0:
-            return redirect(res.first().real_url, code=302)
-        else:
+        if res.rowcount < 1:
             return jsonify(
                 {
                     "status": "error",
                     "msg": "There is no such short URL!"
                 }
             ), 404
+        elif res.first().valid_to < curr_dt:
+            return jsonify(
+                {
+                    "status": "error",
+                    "msg": "This URL is outdated!"
+                }
+            ), 404
+        else:
+            return redirect(res.first().real_url, code=302)
 
 
 @app.route('/create_url', methods=['POST'])
 @validate_fields
-@cleanup
 def create_short_link():
     """
     Checks that such real url exists in DB, and also controls max count
@@ -82,11 +92,7 @@ def create_short_link():
                 }
             ), 200
         
-        # Count all records in the DB
-        res = conn.execute(
-            func.count(table.c.id)
-        )
-        if res.rowcount >= MAX_RECORDS:
+        if is_max_rowscount(db, table) or is_max_rowscount(db, table, pre_cleanup=True):
             return jsonify(
                 {
                     "status": "error",
@@ -132,4 +138,4 @@ def handle_request_fields_error(error):
     return jsonify({"status": "error", "msg": error.message}), 400
 
 if __name__ == "__main__":
-    app.run()
+    app.run(use_reloader=False)

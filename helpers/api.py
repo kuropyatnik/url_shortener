@@ -7,6 +7,7 @@ from flask import Response, request, make_response
 from datetime import datetime, timedelta
 
 from .exceptions import RequestFieldException
+from .consts import MAX_RECORDS
 
 
 url_regex = re.compile(r'^(?:http|ftp)s?://' # http:// or https://
@@ -50,24 +51,37 @@ def validate_fields(f):
     return decorated_function
 
 
-def cleanup(f):
+def cleanup(db: sqlalchemy.engine.Engine, table: sqlalchemy.Table):
     """
-    Decorator to clean expired links from DB
-    It uses parameters with DB connection and Table instance, so
-    there is a wrap of wrapped function
+    Cronjob, which clears DB from old records
     """
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        ts = time.time()
-        # Import engine and current main table to use
-        from main import db, table
-        with db.connect() as conn:
-            # Cleanup from all old records
-            conn.execute(table.delete().where(
-                table.c.valid_to < datetime.fromtimestamp(ts))
-            )
-        return f(*args, **kwargs)
-    return decorated_function
+    ts = time.time()
+    with db.connect() as conn:
+        # Cleanup from all old records
+        conn.execute(table.delete().where(
+            table.c.valid_to < datetime.fromtimestamp(ts))
+        )
+    print("Cleanup is finished!")
+
+
+def is_max_rowscount(
+        db: sqlalchemy.engine.Engine, 
+        table: sqlalchemy.Table,
+        pre_cleanup: bool = False
+    ):
+    """
+    Checks for current table rows count with possible pre-delete
+    """
+    # Count all records in the DB
+    with db.connect() as conn:
+        if pre_cleanup:
+            cleanup(db, table)
+
+        res = conn.execute(
+            sqlalchemy.func.count(table.c.id)
+        )
+    return res.rowcount >= MAX_RECORDS
+
 
 
 def encrypt_url(long_url: str, ts: datetime.timestamp) -> str:
